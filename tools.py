@@ -1,73 +1,103 @@
 import os
 import time
 import random
+import sqlite3
 from instagrapi import Client
 from crewai.tools import tool
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# We initialize the client ONCE at the top level to prevent repeated logins
+def smart_delay(min_sec=15, max_sec=45):
+    delay = random.uniform(min_sec, max_sec)
+    time.sleep(delay)
+
 cl = Client()
 SESSION_FILE = "session.json"
 
+
+def init_db():
+    conn = sqlite3.connect('leads_memory.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS visited_leads (
+            username TEXT PRIMARY KEY,
+            scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def is_lead_new(username):
+    conn = sqlite3.connect('leads_memory.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM visited_leads WHERE username = ?', (username,))
+    result = cursor.fetchone()
+    conn.close()
+    return result is None
+
+def save_lead(username):
+    conn = sqlite3.connect('leads_memory.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR IGNORE INTO visited_leads (username) VALUES (?)', (username,))
+    conn.commit()
+    conn.close()
+
+# --- Login Logic ---
 def login_instagram():
-    """Helper function to handle login once."""
-    username = os.getenv("IG_USERNAME")
-    password = os.getenv("IG_PASSWORD")
-
     if os.path.exists(SESSION_FILE):
-        print(f"Loading session for {username}...")
         cl.load_settings(SESSION_FILE)
-    
     try:
-        cl.login(username, password)
+        cl.login(os.getenv("IG_USERNAME"), os.getenv("IG_PASSWORD"))
         cl.dump_settings(SESSION_FILE)
-        print("Instagram Login successful!")
+        print("Instagram Login Successful!")
     except Exception as e:
-        print(f"Login failed: {e}")
+        print(f"Login Error: {e}")
 
-# Run login once when the module is imported
+init_db()
 login_instagram()
 
-class InstagramTools:
-    @tool("search_instagram_niche")
-    def search_niche(query: str):
-        """
-        Search for Instagram accounts in a specific niche (e.g., 'home decor').
-        Returns a list of usernames and their bios.
-        """
-        print(f"Searching for niche: {query}...")
-        users = cl.search_users(query, amount=5) 
-        
-        results = []
-        for user in users:
-            # We add a small delay to be safe
-            time.sleep(random.uniform(1, 2))
-            info = cl.user_info(user.pk)
-            results.append({
-                "username": info.username,
-                "bio": info.biography,
-                "followers": info.follower_count
-            })
-        return str(results)
 
-    @tool("search_hashtag_posts")
-    def search_hashtag(hashtag: str):
-        """
-        Search for the most recent posts using a specific hashtag.
-        Returns usernames and captions of people posting in that niche.
-        """
-        print(f"Scoping out the #{hashtag} scene...")
-        medias = cl.hashtag_medias_recent(hashtag, amount=5)
+
+@tool("search_instagram_niche")
+def search_niche(query: str):
+    """Modern ev ve doğal yaşam gibi nişlerde hesap araması yapar."""
+    print(f"Searching niche: {query}...")
+    users = cl.search_users(query, amount=5)
+    results = []
+    for user in users:
+        time.sleep(random.uniform(2, 4))
+        info = cl.user_info(user.pk)
+        results.append({"username": info.username, "bio": info.biography})
+    return str(results)
+
+@tool("search_hashtag_posts")
+def search_hashtag(hashtag: str, amount: int = 10): # Added 'amount' with a default
+    """
+    Search for the most recent posts using a specific hashtag.
+    Now accepts an 'amount' parameter for how many posts to scan.
+    """
+    # Fix 1: Clean the hashtag (Remove # and spaces)
+    clean_hashtag = hashtag.strip().replace("#", "")
+    
+    # Fix 2: Use the amount the agent requested
+    print(f"Scoping out fresh leads in #{clean_hashtag} (Requesting {amount} posts)...")
+    
+    try:
+        medias = cl.hashtag_medias_recent(clean_hashtag, amount=amount)
         
         results = []
         for media in medias:
-            results.append({
-                "username": media.user.username,
-                "caption": media.caption_text,
-                "like_count": media.like_count
-            })
-            time.sleep(random.uniform(1, 3))
-            
+            username = media.user.username
+            if is_lead_new(username):
+                results.append({
+                    "username": username,
+                    "caption": media.caption_text,
+                    "like_count": media.like_count
+                })
+                save_lead(username)
+                if len(results) >= 5: break # Keep it small for safety
+                smart_delay(5, 10)
         return str(results)
+    except Exception as e:
+        return f"Error: {str(e)}"

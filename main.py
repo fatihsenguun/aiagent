@@ -1,22 +1,21 @@
 import os
 from dotenv import load_dotenv
 from crewai import Crew, Process
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 from agents import EcommerceAgents
 from tasks import EcommerceTasks
+from crewai import LLM
 
 load_dotenv()
 
-gemini_llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    verbose=True,
-    temperature=0.5,
-    google_api_key=os.environ["GOOGLE_API_KEY"]
+local_llm = LLM(
+    model="ollama/qwen3:8b",
+    base_url="http://localhost:11434"
 )
 
-agents= EcommerceAgents(gemini_llm)
-tasks= EcommerceTasks()
+agents = EcommerceAgents(local_llm)
+tasks = EcommerceTasks()
 
 scout = agents.market_scout_agent()
 analyst = agents.lead_analyst_agent()
