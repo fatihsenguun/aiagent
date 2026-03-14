@@ -1,8 +1,12 @@
 import os
-from crewai import Agent,Task,Crew,Process
+from dotenv import load_dotenv
+from crewai import Crew, Process
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from agents import EcommerceAgents
+from tasks import EcommerceTasks
 
+load_dotenv()
 
 gemini_llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
@@ -11,33 +15,30 @@ gemini_llm = ChatGoogleGenerativeAI(
     google_api_key=os.environ["GOOGLE_API_KEY"]
 )
 
-analyst_agent=Agent(
-    role='Senior Instagram Profile Analyst',
-    goal='Analyze the provided Instagram bio and content to identify the user\'s profession and core interests.',
-    backstory='You are an expert in digital marketin and social engineering. You can decode a person\'s lifestyle and needs just by looking at their social media presence.',
-    llm=gemini_llm,
-    verbose=True,
-    allow_delegation=False
-)
+agents= EcommerceAgents(gemini_llm)
+tasks= EcommerceTasks()
 
-analysis_task = Task(
-    description='Analyze the following Instagram profile: "Coffee lover ☕ | Software Engineer 💻 | Hiking on weekends 🏕️ | Building an AI startup!"',
-    expected_output='A concise report including: 1. Profession, 2. Primary Interest, 3. A personalized opening line for a DM.',
-    agent=analyst_agent
-)
+scout = agents.market_scout_agent()
+analyst = agents.lead_analyst_agent()
+writer = agents.sales_copywriter_agent()
 
-instagram_crew = Crew(
-    agents=[analyst_agent],
-    tasks=[analysis_task],
-    process=Process.sequential,
+my_niche = "modern home, sustainable living and luxury bed linen"
+
+task1 = tasks.research_niche_task(scout, my_niche)
+task2 = tasks.analyze_leads_task(analyst)
+task3 = tasks.write_dm_task(writer)
+
+ecommerce_crew = Crew(
+    agents=[scout, analyst, writer],
+    tasks=[task1, task2, task3],
+    process=Process.sequential, # Tasks happen one after another
     verbose=True
 )
 
-print("### Starting the AI Agent System ###\n")
-
-result = instagram_crew.kickoff()
+print(f"### Starting E-commerce Agent for: {my_niche} ###")
+result = ecommerce_crew.kickoff()
 
 print("\n\n########################")
-print("## ANALYSIS COMPLETED ##")
+print("## FINAL SALES REPORT ##")
 print("########################\n")
 print(result)
