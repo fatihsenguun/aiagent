@@ -1,5 +1,6 @@
 from crewai import Agent
-from tools import search_niche, search_hashtag
+# BURAYI GÜNCELLEDİK: Eski search_hashtag yerine yeni search_target_profiles geldi
+from tools import search_target_profiles, analyze_and_score_user
 
 class EcommerceAgents:
     def __init__(self, llm):
@@ -7,51 +8,32 @@ class EcommerceAgents:
 
     def market_scout_agent(self):
         return Agent(
-            role='Ethical Textile Market Scout',
-            goal='Identify high-intent leads who value pure, non-industrial lifestyle aesthetics.',
-            backstory=(
-                "You are an expert at spotting the 'Natural Living' movement. You use "
-                "signals of quality like #slowliving and #organicinteriors to find leads."
-            ),
-
-            tools=[search_niche, search_hashtag], 
+            role='Instagram Profile Scout',
+            goal='Scrape 5 potential usernames targeting specific professions or keywords.',
+            backstory="You are a targeted data scraper. Your job is to find high-quality usernames using the profile search tool.",
+            tools=[search_target_profiles], # ARAÇ BURADA DA GÜNCELLENDİ
             llm=self.llm,
+            allow_delegation=False,
             verbose=True
         )
-      
     
     def lead_analyst_agent(self):
         return Agent(
-            role='Material Integrity Analyst',
-            goal='Filter leads to ensure they align with a 100% natural, non-synthetic lifestyle.',
-            backstory=(
-                "You are a specialist in material ethics. You can distinguish between 'fast-fashion' "
-                "enthusiasts and 'natural fiber' connoisseurs. You analyze bios and captions to "
-                "find users who mention skin sensitivity, eco-conscious home design, or a "
-                "distaste for industrial, synthetic fabrics. You are the gatekeeper: if a lead "
-                "prefers cheap, mass-produced industrial textiles, you reject them. We only "
-                "want leads who appreciate the 'living' nature of wool, cotton, and linen."
-            ),
+            role='Lead Scoring Analyst',
+            goal='Analyze extracted usernames, apply scoring logic, and filter out unqualified leads.',
+            backstory="You are a strict QA analyst. You use the analyze_and_score_user tool on the usernames provided by the Scout. You only pass leads with a score of 1 or higher to the copywriter.",
+            tools=[analyze_and_score_user],
             llm=self.llm,
-            verbose=True,
-            allow_delegation=False
+            allow_delegation=False,
+            verbose=True
         )
     
     def sales_copywriter_agent(self):
         return Agent(
-            role='Natural Living Brand Storyteller',
-            goal='Draft deeply personal DMs that explain the sensory benefits of natural fibers over industrial ones.',
-            backstory=(
-                "You represent a high-end boutique that believes industrial materials "
-                "have no place in a sanctuary like a bedroom. You speak with the authority "
-                "of a founder. When you write, you focus on the 'sensory' experience: the "
-                "coolness of linen, the moisture-wicking of bamboo, and the thermal "
-                "intelligence of wool. Your DMs must feel like a thoughtful recommendation "
-                "from a friend who cares about the lead's sleep health. If you cannot find "
-                "a specific 'Natural Hook' in their profile, you remain silent. We value "
-                "brand reputation over spamming."
-            ),
+            role='Boutique DM Specialist',
+            goal='Draft hyper-personalized, non-salesy DMs based on the approved leads.',
+            backstory="You are a lifestyle brand founder. You never sound like a marketer. You write soft, elegant DMs focused on sleep health, natural fibers, and shared philosophies. You always use variables like {username} and {bio_keyword}.",
             llm=self.llm,
-            verbose=True,
-            allow_delegation=True
+            allow_delegation=False,
+            verbose=True
         )

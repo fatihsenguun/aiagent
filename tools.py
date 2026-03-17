@@ -1,103 +1,92 @@
-import os
-import time
-import random
-import sqlite3
+import os, time, random
 from instagrapi import Client
 from crewai.tools import tool
 from dotenv import load_dotenv
 
 load_dotenv()
-
-def smart_delay(min_sec=15, max_sec=45):
-    delay = random.uniform(min_sec, max_sec)
-    time.sleep(delay)
-
 cl = Client()
 SESSION_FILE = "session.json"
 
+def smart_delay(min_s=15, max_s=35):
+    delay = random.uniform(min_s, max_s)
+    print(f"--- 😴 Stealth Delay: {round(delay)}s ---")
+    time.sleep(delay)
 
-def init_db():
-    conn = sqlite3.connect('leads_memory.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS visited_leads (
-            username TEXT PRIMARY KEY,
-            scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-def is_lead_new(username):
-    conn = sqlite3.connect('leads_memory.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM visited_leads WHERE username = ?', (username,))
-    result = cursor.fetchone()
-    conn.close()
-    return result is None
-
-def save_lead(username):
-    conn = sqlite3.connect('leads_memory.db')
-    cursor = conn.cursor()
-    cursor.execute('INSERT OR IGNORE INTO visited_leads (username) VALUES (?)', (username,))
-    conn.commit()
-    conn.close()
-
-# --- Login Logic ---
 def login_instagram():
     if os.path.exists(SESSION_FILE):
         cl.load_settings(SESSION_FILE)
     try:
         cl.login(os.getenv("IG_USERNAME"), os.getenv("IG_PASSWORD"))
         cl.dump_settings(SESSION_FILE)
-        print("Instagram Login Successful!")
+        print("🚀 Instagram Login Successful!")
     except Exception as e:
-        print(f"Login Error: {e}")
+        print(f"❌ Login Error: {e}")
 
-init_db()
 login_instagram()
 
-
-
-@tool("search_instagram_niche")
-def search_niche(query: str):
-    """Modern ev ve doğal yaşam gibi nişlerde hesap araması yapar."""
-    print(f"Searching niche: {query}...")
-    users = cl.search_users(query, amount=5)
-    results = []
-    for user in users:
-        time.sleep(random.uniform(2, 4))
-        info = cl.user_info(user.pk)
-        results.append({"username": info.username, "bio": info.biography})
-    return str(results)
-
-@tool("search_hashtag_posts")
-def search_hashtag(hashtag: str, amount: int = 10): # Added 'amount' with a default
+@tool("search_target_profiles")
+def search_target_profiles(keyword: str, amount: int = 5):
     """
-    Search for the most recent posts using a specific hashtag.
-    Now accepts an 'amount' parameter for how many posts to scan.
+    Searches directly for Instagram users by keyword (e.g., 'interior designer', 'boutique hotel').
+    Returns a list of targeted usernames.
     """
-    # Fix 1: Clean the hashtag (Remove # and spaces)
-    clean_hashtag = hashtag.strip().replace("#", "")
-    
-    # Fix 2: Use the amount the agent requested
-    print(f"Scoping out fresh leads in #{clean_hashtag} (Requesting {amount} posts)...")
+    print(f"--- 🎯 Searching Profiles for: '{keyword}' ---")
     
     try:
-        medias = cl.hashtag_medias_recent(clean_hashtag, amount=amount)
-        
+        # hashtag aramak yerine doğrudan kullanıcı arıyoruz
+        users = cl.search_users(keyword) 
         results = []
-        for media in medias:
-            username = media.user.username
-            if is_lead_new(username):
-                results.append({
-                    "username": username,
-                    "caption": media.caption_text,
-                    "like_count": media.like_count
-                })
-                save_lead(username)
-                if len(results) >= 5: break # Keep it small for safety
-                smart_delay(5, 10)
-        return str(results)
+        
+        for user in users[:amount]:
+            smart_delay(5, 10)
+            results.append(user.username)
+            
+        return str(list(set(results))) 
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {e}. Use placeholders: ['london_interiors', 'boutique_stays']"
+
+@tool("analyze_and_score_user")
+def analyze_and_score_user(username: str):
+    """Pulls user bio, filters them based on criteria, guesses country, and scores them."""
+    print(f"--- 👤 Analyzing: {username} ---")
+    smart_delay(6, 15)
+    
+    try:
+        user_info = cl.user_info_by_username(username)
+        bio = user_info.biography.lower()
+        followers = user_info.follower_count
+        
+        # Step 4: Reject filters
+        reject_words = ["crypto", "trading", "marketing agency"]
+        if any(word in bio for word in reject_words):
+            return f"{username} rejected (Contains banned keywords)."
+            
+        # Step 4: Follower limits
+        if not (2000 <= followers <= 50000):
+            return f"{username} rejected (Followers: {followers} out of range)."
+
+        # Step 5: Country Detection
+        country = "Unknown"
+        country_hints = {"nyc": "USA", "la": "USA", "🇺🇸": "USA", "london": "UK", "🇬🇧": "UK", "berlin": "Germany", "🇩🇪": "Germany"}
+        for hint, c in country_hints.items():
+            if hint in bio:
+                country = c
+                break
+
+        # Step 9: Lead Scoring
+        score = 0
+        score_map = {"interior designer": 3, "sustainable living": 3, "modern home": 2, "slow living": 2, "wellness": 1}
+        for keyword, pts in score_map.items():
+            if keyword in bio:
+                score += pts
+
+        return {
+            "username": username,
+            "followers": followers,
+            "bio": user_info.biography,
+            "country": country,
+            "score": score,
+            "status": "Approved" if score > 0 else "Low Score"
+        }
+    except Exception as e:
+        return f"Could not retrieve details for {username}."

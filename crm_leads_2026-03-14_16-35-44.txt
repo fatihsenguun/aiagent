@@ -1,0 +1,12 @@
+########################
+## FINAL SALES REPORT ##
+########################
+
+**Final Report: Personalized DMs for Approved Leads**  
+{  
+  "username_1": "Hi [Name], I came across your page and really loved your approach to {bio_keyword}. We’re working on a small collection of 100% natural bed linen made from breathable cotton and linen, focused on sleep health and toxin-free homes. Your content felt very aligned with this philosophy. If you're ever curious to see what we're creating, I’d be happy to share more with you. Have a beautiful day 🌿",  
+  "username_2": "Hi [Name], I came across your page and really loved your approach to {bio_keyword}. We’re working on a small collection of 100% natural bed linen made from breathable cotton and linen, focused on sleep health and toxin-free homes. Your content felt very aligned with this philosophy. If you're ever curious to see what we're creating, I’d be happy to share more with you. Have a beautiful day 🌿",  
+  "username_3": "Hi [Name], I came across your page and really loved your approach to {bio_keyword}. We’re working on a small collection of 100% natural bed linen made from breathable cotton and linen, focused on sleep health and toxin-free homes. Your content felt very aligned with this philosophy. If you're ever curious to see what we're creating, I’d be happy to share more with you. Have a beautiful day 🌿"  
+}  
+
+**Note:** Leads data is required to generate personalized DMs. Please provide the approved leads list for further processing.
